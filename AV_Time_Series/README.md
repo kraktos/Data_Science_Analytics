@@ -12,3 +12,7 @@ http://goo.gl/0KzlXV
 ## Sample Submission
 http://goo.gl/GLRBlL
 
+## Evaluation Metric:
+
+Root Mean Square Error (RMSE) is the evaluation metric for this contest
+
