@@ -10,14 +10,23 @@ def main():
 
     df_train = pd.read_csv('train.csv')
     print(df_train.shape)
-    df_train = df_train.replace(r'\s+', '-', regex=True)
+
+    # missing values imputing
+    df_train["LoanAmount"].fillna(df_train["LoanAmount"].mean(), inplace=True)
+    df_train["Loan_Amount_Term"].fillna(df_train["Loan_Amount_Term"].mean(), inplace=True)
+    df_train["Credit_History"].fillna(df_train["Credit_History"].mean(), inplace=True)
+    df_train = df_train.fillna('-')
     print(df_train.shape)
 
     df_test = pd.read_csv('test.csv')
     print(len(df_test))
+    df_test["LoanAmount"].fillna(df_test["LoanAmount"].mean(), inplace=True)
+    df_test["Loan_Amount_Term"].fillna(df_test["Loan_Amount_Term"].mean(), inplace=True)
+    df_test["Credit_History"].fillna(df_test["Credit_History"].mean(), inplace=True)
+
     df_test = df_test.fillna('-')
+
     original_id = df_test.iloc[:, 0]
-    df_test = df_test.fillna(0)
     test_encoded = df_test.apply(le_sex.fit_transform)
     print(len(df_test))
 
@@ -50,7 +59,7 @@ def main():
     percentile_list = pd.DataFrame({'Loan_ID': original_id,
                                     'Loan_Status': pd.Series(Loan_Status)}, columns=['Loan_ID', 'Loan_Status'])
 
-    percentile_list.to_csv('data', header=True, index=False)
+    percentile_list.to_csv('data.csv', header=True, index=False)
 
 
 if __name__ == "__main__":
