@@ -2,7 +2,10 @@ import pandas as pd
 from scipy.stats import mode
 from sklearn import cross_validation
 from sklearn import preprocessing
+from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 
 
 # fit an algorithm and cross validate
@@ -10,11 +13,30 @@ def algo_fit_cross_validated(training_matrix, target):
     # Random Forest
     rf = RandomForestClassifier(n_estimators=200, max_depth=6)
 
-    scores = cross_validation.cross_val_score(rf, training_matrix, target, cv=5)
-    print("Accuracy: %0.4f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
-    rf.fit(training_matrix, target)
+    scores_rf = cross_validation.cross_val_score(rf, training_matrix, target, cv=5)
+    print("(Random Forest) Accuracy: %0.4f (+/- %0.2f)" % (scores_rf.mean(), scores_rf.std() * 2))
 
-    return rf
+    # Create and fit an AdaBoosted decision tree
+    bdt = AdaBoostClassifier(DecisionTreeClassifier(max_depth=5),
+                             algorithm="SAMME.R",
+                             n_estimators=200)
+    scores_ab = cross_validation.cross_val_score(bdt, training_matrix, target, cv=5)
+    print("(ADA Boost) Accuracy: %0.4f (+/- %0.2f)" % (scores_ab.mean(), scores_ab.std() * 2))
+
+    # SVM
+    svm = SVC(kernel="linear", C=0.05)
+    svm.fit(training_matrix, target)
+
+    scores_svm = cross_validation.cross_val_score(svm, training_matrix, target, cv=5)
+    print("(svm) Accuracy: %0.4f (+/- %0.2f)" % (scores_svm.mean(), scores_svm.std() * 2))
+
+    if scores_ab.mean() > scores_rf.mean():
+        algo = bdt
+    else:
+        algo = rf
+
+    algo.fit(training_matrix, target)
+    return algo
 
 
 # encode labels to numeric values
