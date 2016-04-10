@@ -68,7 +68,7 @@ def main():
     # encode categorical values
     encoded_train_matrix, target, test_encoded = encode(df_train, df_test)
 
-    # fit algo.
+    # fit algorithm
     rf = algo_fit_cross_validated(encoded_train_matrix, target)
 
     # run on test file to predict and report submission file
