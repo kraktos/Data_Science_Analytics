@@ -1,8 +1,9 @@
+import numpy as np
 import pandas as pd
 from scipy.stats import mode
 from sklearn import cross_validation
 from sklearn import preprocessing
-
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.svm import SVC
 
 
@@ -15,23 +16,37 @@ def func(row):
 
 # fit an algorithm and cross validate
 def algo_fit_cross_validated(training_matrix, target):
+    # Build a forest and compute the feature importances
+    forest = ExtraTreesClassifier(n_estimators=250,
+                                  random_state=0)
+
+    forest.fit(training_matrix, target)
+    importances = forest.feature_importances_
+    std = np.std([tree.feature_importances_ for tree in forest.estimators_],
+                 axis=0)
+    indices = np.argsort(importances)[::-1]
+
+    l = list(training_matrix.columns.values)
+    for f in range(training_matrix.shape[1]):
+        print("%d. feature %d(%s) (%f)" % (f + 1, indices[f], l[indices[f]], importances[indices[f]]))
+
     ##### Works well ######
     # SVM
-    svm = SVC(kernel="linear", C=0.06)
-    svm.fit(training_matrix, target)
-
-    scores_svm = cross_validation.cross_val_score(svm, training_matrix, target, cv=5)
-    print("(svm) Accuracy: %0.5f (+/- %0.2f)" % (scores_svm.mean(), scores_svm.std() * 2))
-
-    return svm
+    # svm = SVC(kernel="linear", C=0.06)
+    # svm.fit(training_matrix, target)
+    #
+    # scores_svm = cross_validation.cross_val_score(svm, training_matrix, target, cv=5)
+    # print("(svm) Accuracy: %0.5f (+/- %0.2f)" % (scores_svm.mean(), scores_svm.std() * 2))
+    #
+    # return svm
     ##### Works well ######
 
     # Random Forest
-    # rf = RandomForestClassifier(n_estimators=1500, max_depth=7, max_features=4)
-    # scores_rf = cross_validation.cross_val_score(rf, training_matrix, target, cv=5)
-    # print("(Random Forest) Accuracy: %0.5f (+/- %0.2f)" % (scores_rf.mean(), scores_rf.std() * 2))
-    # rf.fit(training_matrix, target)
-    # return rf
+    rf = RandomForestClassifier(n_estimators=1500, max_depth=2, max_features=4)
+    scores_rf = cross_validation.cross_val_score(rf, training_matrix, target, cv=5)
+    print("(Random Forest) Accuracy: %0.5f (+/- %0.2f)" % (scores_rf.mean(), scores_rf.std() * 2))
+    rf.fit(training_matrix, target)
+    return rf
 
     # Create and fit an AdaBoosted decision tree
     # bdt = AdaBoostClassifier(DecisionTreeClassifier(max_depth=10),
@@ -102,16 +117,55 @@ def preprocess(train_file, test_file):
     df_train['ratio'] = df_train['total_income'] / df_train['LoanAmount']
     df_test['ratio'] = df_test['total_income'] / df_test['LoanAmount']
 
+    df_train['emi'] = df_train['LoanAmount'] / df_train['Loan_Amount_Term']
+    df_test['emi'] = df_test['LoanAmount'] / df_test['Loan_Amount_Term']
+
+    # drop redundant features
+    ids = df_test['Loan_ID']
+
     df_train.drop('Loan_Status', axis=1, inplace=True)
 
-    df_train.insert(14, 'Loan_Status', value=tmp_train)
+    df_train.drop('Loan_ID', axis=1, inplace=True)
+    df_test.drop('Loan_ID', axis=1, inplace=True)
 
-    return df_train, df_test
+    df_train.drop('ApplicantIncome', axis=1, inplace=True)
+    df_test.drop('ApplicantIncome', axis=1, inplace=True)
+
+    df_train.drop('CoapplicantIncome', axis=1, inplace=True)
+    df_test.drop('CoapplicantIncome', axis=1, inplace=True)
+
+    df_train.drop('Loan_Amount_Term', axis=1, inplace=True)
+    df_test.drop('Loan_Amount_Term', axis=1, inplace=True)
+
+    df_train.drop('LoanAmount', axis=1, inplace=True)
+    df_test.drop('LoanAmount', axis=1, inplace=True)
+
+    df_train.drop('Education', axis=1, inplace=True)
+    df_test.drop('Education', axis=1, inplace=True)
+
+    df_train.drop('Married', axis=1, inplace=True)
+    df_test.drop('Married', axis=1, inplace=True)
+
+    df_train.drop('Gender', axis=1, inplace=True)
+    df_test.drop('Gender', axis=1, inplace=True)
+
+    df_train.drop('Self_Employed', axis=1, inplace=True)
+    df_test.drop('Self_Employed', axis=1, inplace=True)
+
+    df_train.drop('Property_Area', axis=1, inplace=True)
+    df_test.drop('Property_Area', axis=1, inplace=True)
+
+    # df_train.drop('Dependents', axis=1, inplace=True)
+    # df_test.drop('Dependents', axis=1, inplace=True)
+
+    df_train.insert(len(df_train.columns), 'Loan_Status', value=tmp_train)
+
+    return ids, df_train, df_test
 
 
 # run the fitted algo on the test
-def predict_save_file(df_test, test_encoded, algo):
-    final_preds = pd.DataFrame({'Loan_ID': df_test.iloc[:, 0],
+def predict_save_file(ids, test_encoded, algo):
+    final_preds = pd.DataFrame({'Loan_ID': ids,
                                 'Loan_Status': pd.Series(algo.predict(test_encoded))},
                                columns=['Loan_ID', 'Loan_Status'])
 
@@ -120,11 +174,7 @@ def predict_save_file(df_test, test_encoded, algo):
 
 def main():
     # clean up the inputs
-    df_train, df_test = preprocess('train.csv', 'test.csv')
-
-    # axes = pd.tools.plotting.scatter_matrix(df_train, alpha=0.2)
-    # plt.tight_layout()
-    # plt.savefig('scatter_matrix.png')
+    ids, df_train, df_test = preprocess('train.csv', 'test.csv')
 
     # encode categorical values
     encoded_train_matrix, target, test_encoded = encode(df_train, df_test)
@@ -133,7 +183,7 @@ def main():
     rf = algo_fit_cross_validated(encoded_train_matrix, target)
 
     # run on test file to predict and report submission file
-    predict_save_file(df_test, test_encoded, rf)
+    predict_save_file(ids, test_encoded, rf)
 
 
 if __name__ == "__main__":
