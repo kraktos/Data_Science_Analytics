@@ -60,7 +60,7 @@ def pre_processing(df):
     df2 = df[numpy.isfinite(df['MonthlyIncome'])]
 
     # percent null values
-    drop = 1 - (len(df2)/float(len(df)))
+    drop = 1 - (len(df2) / float(len(df)))
 
     # if more than 5% of data lost, impute
     if drop > 0.05:
@@ -69,7 +69,7 @@ def pre_processing(df):
         df = df2
 
     # standardize the data first
-    #df_scaled = preprocessing.scale(df)
+    # df_scaled = preprocessing.scale(df)
 
     # print the list of features and their variances
     # names = df.columns.values
@@ -106,7 +106,6 @@ def up_sample(user_df, threshold):
 
 
 def gen_model(X, y):
-
     # logistic regression ##############################################################
     # logistic = linear_model.LogisticRegression()
     # model = logistic.fit(X_train, y_train)
@@ -125,7 +124,9 @@ def gen_model(X, y):
     # random forest regression ##############################################################
     rf = RandomForestClassifier(n_estimators=80, n_jobs=4)
     scores = cv.cross_val_score(rf, X, numpy.ravel(y)
-                                , cv = 5, scoring = 'f1')
+                                , cv=5, scoring='roc_auc')
+
+    rf.fit(X, numpy.ravel(y))
 
     # model = rf.fit(X_train, numpy.ravel(y_train))
     # acc =  model.score(X_test, y_test)
@@ -140,7 +141,7 @@ def gen_model(X, y):
     # print("F1 = {}".format(f1_score(y_actu, y_pred, average='binary')))
     # f1 = f1_score(y_actu, y_pred, average='binary')
 
-    return scores.mean()
+    return scores.mean(), rf
 
 
 def run_all(threshold):
@@ -155,6 +156,7 @@ def run_all(threshold):
     del test_data_holdout['Unnamed: 0']
 
     training_data = pre_processing(training_data)
+    test_data_holdout = pre_processing(test_data_holdout)
 
     # feature engineering
     training_data = feature_engineering(training_data)
@@ -164,6 +166,7 @@ def run_all(threshold):
     lst = numpy.delete(lst, 0)
 
     temp = 0
+    modl = None
 
     # get ratio of unbalanced class labels
     labels_ratio = sum(training_data['SeriousDlqin2yrs'].values) / float(len(training_data))
@@ -172,30 +175,59 @@ def run_all(threshold):
     if labels_ratio < threshold:
         training_data = up_sample(training_data, threshold)
 
-    for i in xrange(6, len(lst) + 1):
-        els = [list(x) for x in itertools.combinations(lst, i)]
-        for l in els:
-            l.append('SeriousDlqin2yrs')
-            x = training_data.loc[:, training_data.columns.isin(l)]
+    # for i in xrange(6, 7):
+    #     els = [list(x) for x in itertools.combinations(lst, i)]
+    #     for l in els:
+    #         l.append('SeriousDlqin2yrs')
+    #         x = training_data.loc[:, training_data.columns.isin(l)]
+    #
+    #         # split features and target variables
+    #         # X_train, X_test, y_train, y_test = split_feature_target(x)
+    #         X, y = split_feature_target(x)
+    #
+    #         # take the train test data sets to validate the model
+    #         score, model = gen_model(X, y)
+    #
+    #         if score > temp:
+    #             temp = score
+    #             modl = model
+    #             print l, temp
 
-            # # get ratio of unbalanced class labels
-            # labels_ratio = sum(training_data['SeriousDlqin2yrs'].values) / float(len(training_data))
-            #
-            # # if class labels are skewed
-            # if labels_ratio < threshold:
-            #     x = up_sample(x, threshold)
 
-            # split features and target variables
-            # X_train, X_test, y_train, y_test = split_feature_target(x)
-            X, y = split_feature_target(x)
 
-            # take the train test data sets to validate the model
-            f1 = gen_model(X, y)
-            # print l
+    x = training_data.loc[:, training_data.columns.isin(
+        ['age', 'NumberOfTime30-59DaysPastDueNotWorse', 'DebtRatio', 'MonthlyIncome', 'NumberOfOpenCreditLinesAndLoans',
+         'NumberOfTimes90DaysLate', 'SeriousDlqin2yrs']
+        )]
 
-            if f1 > temp:
-                temp = f1
-                print l, temp
+    # split features and target variables
+    # X_train, X_test, y_train, y_test = split_feature_target(x)
+    X, y = split_feature_target(x)
+
+    # take the train test data sets to validate the model
+    score, modl = gen_model(X, y)
+    print score
+
+    # select the features from test data
+    test = test_data_holdout.loc[:, test_data_holdout.columns.isin(
+        ['age', 'NumberOfTime30-59DaysPastDueNotWorse', 'DebtRatio', 'MonthlyIncome', 'NumberOfOpenCreditLinesAndLoans',
+         'NumberOfTimes90DaysLate']
+        )]
+    pred = modl.predict_proba(test)
+
+    # write solutions to file
+    predicted_probs = [float(x[1]) for x in pred]
+
+    # create submission file
+    numpy.savetxt('submission.csv', numpy.c_[range(1, len(test) + 1), predicted_probs], delimiter=',',
+                  header='Id,Probability',
+                  comments='', fmt='%d,%f')
+
 
 if __name__ == '__main__':
-    run_all(0.31)
+    # print numpy.c_[range(1, 4), [1, 2, 3]]
+    # numpy.savetxt('submission.csv', numpy.c_[range(1, 4), [1, 2, 3]], delimiter=',',
+    #               header='Id,Probability',
+    #               comments='', fmt='%d,%f')
+
+    run_all(0.51)
